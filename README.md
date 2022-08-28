@@ -1,2 +1,2 @@
 # MonopSys
-Basic AI to Play Monopoly
+Basic AI to Advise Monopoly Moves
