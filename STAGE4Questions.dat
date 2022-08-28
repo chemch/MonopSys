@@ -1,0 +1,29 @@
+;***********************************************************************************************************************
+;*******************************        MONOPSYS: The MONOPOLY Expert System         ***********************************
+;*******************************             Written by Chase Chemero                ***********************************
+;*******************************     Based on the algorithms created by Gary Riley   ***********************************
+;*******************************                  Written in CLIPS                   ***********************************
+;*******************************                     08/10/2013                      ***********************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;This file uses a technique that I learned in my studies where a separate file can be called to import facts. This 
+;adds to the modularity of the program in that future edits can be focused on this file. Initial facts for stage 4 are
+;included in this file. They could have been stored in the actual code of the program however good expert system
+;programs separate control information from application information. 
+;***********************************************************************************************************************
+(node (name root) (type decision)
+	(question "Is the following true: You will NOT win the next time you collect your salary and you have at least 1 monopoly that has less than 3 houses on each property? ")
+	(TRUE-node node1) (FALSE-node node2))
+;-----------------------------------------------------------------------------------------------------------------------
+(node (name node1) (type decision)
+	(question "Is the following true: You have only 1 monopoly? ")
+	(TRUE-node node3) (FALSE-node node4))
+;-----------------------------------------------------------------------------------------------------------------------
+(node (name node2) (type answer) (answer "Do not attempt to develop. "))
+;-----------------------------------------------------------------------------------------------------------------------
+(node (name node3) (type answer) (answer "Invest in the monopoly so that there are 3 houses on each property. "))
+;-----------------------------------------------------------------------------------------------------------------------
+(node (name node4) (type answer) (answer "Using Diagram #1, invest in the highest ranked monopoly so that there are 3 houses on each property. If funds remain, continue investing."))
+;***********************************************************************************************************************

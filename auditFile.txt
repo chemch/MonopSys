@@ -1,0 +1,651 @@
+TRUE
+CLIPS> ;
+;***********************************************************************************************************************
+;watch-all --> to be activated --> watch all CLIPS activity
+(watch all)
+CLIPS> ;
+;***********************************************************************************************************************
+;set-dynamic-constraint-checking --> to be activated --> input validation option
+(get-dynamic-constraint-checking)
+FALSE
+CLIPS> (set-dynamic-constraint-checking TRUE)
+FALSE
+CLIPS> (get-dynamic-constraint-checking)
+TRUE
+CLIPS> ;***********************************************************************************************************************
+;-----------------------------------------------------------------------------------------------------------------------
+(batch "C:\\MONOPSYS\\MONOPSYS_SourceCode\\controlEngine1.c")
+TRUE
+CLIPS> ;***********************************************************************************************************************
+;*******************************        MONOPSYS: The MONOPOLY Expert System         ***********************************
+;*******************************             Written by Chase Chemero                ***********************************
+;*******************************     Based on the algorithms created by Gary Riley   ***********************************
+;*******************************                  Written in CLIPS                   ***********************************
+;*******************************                     08/10/2013                      ***********************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;This purpose of this stage is to create a control structure. Despite the fact that CLIPS is not a procedural language
+;does not mean that we can't artificially add procedural elements to the program. The way the program works is by 
+;cycling through stages 1 through 5. This section of code creates the means by which we acknowledge the end of one stage
+;and the beginning of another.
+;
+;Also, all modules are defined in this file. Facts that are to be included in the MAIN defmodule are included in this
+;file as well.
+;***********************************************************************************************************************
+(deffacts MAIN::control-engine
+	(stage-sequence STAGE1 STAGE2 STAGE3 STAGE4 STAGE5))
+CLIPS> ;
+;-----------------------------------------------------------------------------------------------------------------------
+(deftemplate MAIN::stage-complete
+	(slot stage-completion (type SYMBOL) (allowed-symbols TRUE FALSE)))
+CLIPS> ;
+(deffacts MAIN::initial-stage-settings
+	(stage-completion FALSE))
+CLIPS> ;
+;-----------------------------------------------------------------------------------------------------------------------
+(defmodule STAGE3
+	(export deftemplate sequence objective element))
+CLIPS> ;	
+(deftemplate STAGE3::sequence
+   (multislot if)
+   (multislot then))
+CLIPS> ;
+(deftemplate STAGE3::element 
+   (slot name)
+   (slot value))
+CLIPS> ;
+(deftemplate STAGE3::objective 
+   (slot element))
+CLIPS> ;
+;-----------------------------------------------------------------------------------------------------------------------
+(defmodule MAIN
+	(export deftemplate stage-sequence)
+	(export deftemplate stage-completion)
+	(export deftemplate initial-fact)
+	(import STAGE3 deftemplate sequence objective))
+CLIPS> ;
+;-----------------------------------------------------------------------------------------------------------------------
+(defmodule STAGE1
+	(import MAIN deftemplate stage-sequence)
+	(import MAIN deftemplate stage-completion)
+	(import MAIN deftemplate initial-fact))
+CLIPS> ;
+;-----------------------------------------------------------------------------------------------------------------------
+(defmodule STAGE2
+	(import MAIN deftemplate stage-sequence)
+	(import MAIN deftemplate stage-completion))
+CLIPS> ;
+;-----------------------------------------------------------------------------------------------------------------------
+(defmodule STAGE4
+	(import MAIN deftemplate stage-sequence)
+	(import MAIN deftemplate stage-completion))
+CLIPS> ;
+;STAGE4 decision tree template
+(deftemplate STAGE4::node
+	(slot name)
+	(slot type)
+	(slot question)
+	(slot TRUE-node)
+	(slot FALSE-node)
+	(slot answer))
+CLIPS> ;
+;-----------------------------------------------------------------------------------------------------------------------
+(defmodule STAGE5
+	(import MAIN deftemplate stage-sequence)
+	(import MAIN deftemplate stage-completion))
+CLIPS> ;
+;-----------------------------------------------------------------------------------------------------------------------
+(defrule MAIN::change-stage
+	;LHS --> store stage conditions in a variable (stage-order) and check to see that the current stage is complete
+	?stage-order <- (stage-sequence ?next-stage $?subsequent-stages)
+	?stage-completed <- (stage-completion TRUE)
+	=>
+	;RHS --> move focus to the next stage and order the variable (stage-order) to reflect the proper order of stages
+	(retract ?stage-completed)
+	(retract ?stage-order)
+	(assert (stage-completion FALSE))
+	(assert (stage-sequence ?subsequent-stages ?next-stage)))
+CLIPS> ;
+;***********************************************************************************************************************
+;-----------------------------------------------------------------------------------------------------------------------
+(batch "C:\\MONOPSYS\\MONOPSYS_SourceCode\\STAGE1.c")
+TRUE
+CLIPS> ;***********************************************************************************************************************
+;*******************************        MONOPSYS: The MONOPOLY Expert System         ***********************************
+;*******************************             Written by Chase Chemero                ***********************************
+;*******************************     Based on the algorithms created by Gary Riley   ***********************************
+;*******************************                  Written in CLIPS                   ***********************************
+;*******************************                     08/10/2013                      ***********************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;This stage is dedicated to beginning the turn and rolling the dice. All that the player needs to do is roll the dice in
+;order to proceed to the next stage. The LHS looks to see that the current stage is STAGE1 and that the stage completion
+;variable has been set to false (meaning the stage isn't complete).
+;***********************************************************************************************************************
+(defrule STAGE1::STAGE1-complete
+	(declare (auto-focus TRUE))
+	;LHS --> confirm the current stage is STAGE1
+	?current-stage-check <- (stage-sequence STAGE1 $?subsequent-stages)
+	?stage-completed <- (stage-completion FALSE)
+	=>
+	;RHS --> query whether player has rolled the dice (thereby completing this stage)
+	(retract ?stage-completed)
+	(printout t crlf "***************************************************************************************************" crlf "Initializing STAGE1: Begin Turn." crlf "---------------------------------------------------------------------------------------------------" crlf)
+	(printout t "Did you roll the dice? (yes) or (no): ")
+	(bind ?response (read))
+	(while (neq ?response yes)
+		do
+		(printout t "Roll the dice. Did you roll? (yes) or (no): ")
+		(bind ?response (read)))
+	(if (eq ?response yes)
+		then (assert (stage-completion TRUE))))
+CLIPS> ;***********************************************************************************************************************
+;-----------------------------------------------------------------------------------------------------------------------
+(batch "C:\\MONOPSYS\\MONOPSYS_SourceCode\\STAGE2.c")
+TRUE
+CLIPS> ;***********************************************************************************************************************
+;*******************************        MONOPSYS: The MONOPOLY Expert System         ***********************************
+;*******************************             Written by Chase Chemero                ***********************************
+;*******************************     Based on the algorithms created by Gary Riley   ***********************************
+;*******************************                  Written in CLIPS                   ***********************************
+;*******************************                     08/10/2013                      ***********************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;This stage takes is built in a procedural programming style. The purpose of this stage is to advise the player how he
+;should approach different circumstances that can occur directly after rolling the dice and landing on a new square. If
+;he lands on a space that is already owned and he can pay the rent then he has no choice but to do so. If he can't pay 
+;then it is game over. If the property deed is unsold then he should purchase the property if he can afford it. The
+;strategy used here is common strategy among veteran MONOPOLY players; purchase as much property as possible, even if
+;it requires you mortgage your pre-existing properties.
+;***********************************************************************************************************************
+(defrule STAGE2::STAGE2-complete
+	(declare (auto-focus TRUE))
+	;LHS --> confirm the current stage is STAGE2
+	?current-stage-check <- (stage-sequence STAGE2 $?subsequent-stages)
+	?stage-completed <- (stage-completion FALSE)
+	=>
+	;RHS --> query what the status is of the space the player landed on (vacant or owned)
+	(retract ?stage-completed)
+	(printout t crlf "Initializing STAGE2: Purchase Properties." crlf "---------------------------------------------------------------------------------------------------" crlf)
+	(printout t "Is the property you landed on vacant? (yes) or (no): ")
+	(bind ?response (read))
+	(if (eq ?response yes)
+		then (printout t "Can you afford to purchase the property? (yes) or (no): ")
+			(bind ?response (read))
+			(if (eq ?response yes)
+				then (printout t "Purchase the property." crlf crlf)
+				(printout t "Initializing STAGE3: Trade Properties." crlf "---------------------------------------------------------------------------------------------------" crlf)
+				else (printout t "Don't purchase the property." crlf crlf)
+				(printout t "Initializing STAGE3: Trade Properties." crlf "---------------------------------------------------------------------------------------------------" crlf))
+	else (printout t "Do you have enough money to pay the rent? (yes) or (no): ")
+			(bind ?response (read))
+			(if (eq ?response yes)
+				then (printout t "Pay the rent." crlf crlf)
+				(printout t "Initializing STAGE3: Trade Properties." crlf "---------------------------------------------------------------------------------------------------" crlf)
+				else (printout t "Game over. You lose. Declare bankruptcy." crlf crlf)
+				(halt)))
+	(assert (stage-completion TRUE)))
+CLIPS> ;***********************************************************************************************************************
+;-----------------------------------------------------------------------------------------------------------------------
+(batch "C:\\MONOPSYS\\MONOPSYS_SourceCode\\STAGE3.c")
+TRUE
+CLIPS> ;***********************************************************************************************************************
+;*******************************        MONOPSYS: The MONOPOLY Expert System         ***********************************
+;*******************************             Written by Chase Chemero                ***********************************
+;*******************************     Based on the algorithms created by Gary Riley   ***********************************
+;*******************************                  Written in CLIPS                   ***********************************
+;*******************************                     08/10/2013                      ***********************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;Whereas the last stage was developed in a very procedural manner, this stage is fundamentally different in that it uses
+;a backward chaining algorithm created by Gary Riley. Although CLIPS is not compatible with backward chaining theorems
+;its flexibility allows users the ability to create their own program flow. The idea used here is that any forward
+;chaining algorithm uses deduction and probability whereas any backward chaining algorithm uses induction and likelihood.
+;There are some enhancements that could be added here. One additional capability that could be added is a calculation of
+;likelihood that explains with what degree of certainty a combination of certain premises resulted in an event. Because
+;there are no overlapping entirely overlapping premises, this functionality has been omitted. 
+;
+;Do note that there are certain conditions of patterns that are common across multiple many patterns (for example "Do
+;you have any money to invest" is usually a prerequisite for any decision that might cost the player money, whether it 
+;be purchasing property, trading or developing.
+;***********************************************************************************************************************
+(defmodule STAGE3 
+   (export deftemplate sequence objective element))
+
+[CSTRCPSR4] Cannot redefine defmodule STAGE3 while it is in use.
+
+ERROR:
+(defmodule STAGE3
+CLIPS> 
+(deftemplate STAGE3::sequence
+   (multislot if)
+   (multislot then))
+CLIPS> 
+(deftemplate STAGE3::element 
+   (slot name)
+   (slot value))
+CLIPS> 
+(deftemplate STAGE3::objective 
+   (slot element))
+CLIPS> 
+(defrule STAGE3::attempt-sequence
+   (objective (element ?obj-name))
+   (sequence (if ?ele-name $?)
+         (then ?obj-name $?))
+   (not (element (name ?ele-name)))
+   (not (objective (element ?ele-name)))
+   =>
+   (assert (objective (element ?ele-name))))
+CLIPS> 
+(defrule STAGE3::ask-element-value
+   ?objective <- (objective (element ?obj-name))
+   (not (element (name ?obj-name)))
+   (not (sequence (then ?obj-name $?)))
+   =>
+   (retract ?objective)
+   (printout t ?obj-name)
+   (assert (element (name ?obj-name) 
+                      (value (read)))))
+CLIPS> 
+(defrule STAGE3::objective-completed
+   (declare (salience 100))
+   ?objective <- (objective (element ?obj-name))
+   (element (name ?obj-name))
+   ?value <- (element (value ?obj-value))
+   =>
+   (retract ?objective)
+   (printout t ?obj-value crlf))
+CLIPS> 
+(defrule STAGE3::sequence-completed
+   (declare (salience 100))
+   (objective (element ?obj-name))
+   (element (name ?ele-name)
+              (value ?ele-value))
+   ?sequence <- (sequence (if ?ele-name is ?ele-value) 
+                  (then ?obj-name is ?obj-value))
+   =>
+   (retract ?sequence)
+   (assert (element (name ?obj-name) 
+                      (value ?obj-value))))
+CLIPS> 
+(defrule STAGE3::remove-sequence-no-match
+   (declare (salience 100))
+   (objective (element ?obj-name))
+   (element (name ?ele-name) (value ?ele-value))
+   ?sequence <- (sequence (if ?ele-name is ~?ele-value) 
+                  (then ?obj-name is ?obj-value))
+   =>
+   (retract ?sequence))
+CLIPS> 
+(defrule STAGE3::modify-sequence-match
+   (declare (salience 100))
+   (objective (element ?obj-name))
+   (element (name ?ele-name) (value ?ele-value))
+   ?sequence <- (sequence (if ?ele-name is ?ele-value and 
+                      $?rest-if) 
+                  (then ?obj-name is ?obj-value))
+   =>
+   (retract ?sequence)
+   (modify ?sequence (if $?rest-if)))
+CLIPS> 
+(defmodule MAIN (import STAGE3 deftemplate sequence objective))
+
+[CSTRCPSR4] Cannot redefine defmodule MAIN while it is in use.
+
+ERROR:
+(defmodule MAIN
+CLIPS> 
+(deffacts MAIN::trade-rules
+   (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and
+				"According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), (\"light blue\"), (yellow), (\"dark blue\"), (\"light purple\"), (green), or (\"dark purple\"): " is orange and
+				"Have you attempted a trade for this property? (yes) or (no): " is yes) 
+					(then recommendation is "Attempt to procure this property through trade. Offer a 50% mark-up (including both cash and property) to your opponent. "))
+		 
+   (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and
+				"According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), (\"light blue\"), (yellow), (\"dark blue\"), (\"light purple\"), (green), or (\"dark purple\"): " is orange and
+				"Have you attempted a trade for this property? (yes) or (no): " is no) 
+					(then recommendation is "Attempt to procure this property through trade. Offer a 35% mark-up (including cash only) to your opponent. "))
+					
+	(sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and
+				"According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), (\"light blue\"), (yellow), (\"dark blue\"), (\"light purple\"), (green), or (\"dark purple\"): " is red and
+				"Have you attempted a trade for this property? (yes) or (no): " is yes) 
+					(then recommendation is "Attempt to procure this property through trade. Offer a 50% mark-up (including both cash and property) to your opponent. "))
+		 
+   (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and
+				"According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), (\"light blue\"), (yellow), (\"dark blue\"), (\"light purple\"), (green), or (\"dark purple\"): " is red and
+				"Have you attempted a trade for this property? (yes) or (no): " is no) 
+					(then recommendation is "Attempt to procure this property through trade. Offer a 35% mark-up (including cash only) to your opponent. "))
+
+   (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and
+				"According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), (\"light blue\"), (yellow), (\"dark blue\"), (\"light purple\"), (green), or (\"dark purple\"): " is "light blue" and
+				"Have you attempted a trade for this property? (yes) or (no): " is yes) 
+					(then recommendation is "Attempt to procure this property through trade. Offer a 45% mark-up (including both cash and property) to your opponent. "))
+		 
+   (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and
+				"According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), (\"light blue\"), (yellow), (\"dark blue\"), (\"light purple\"), (green), or (\"dark purple\"): " is "light blue" and
+				"Have you attempted a trade for this property? (yes) or (no): " is no) 
+					(then recommendation is "Attempt to procure this property through trade. Offer a 30% mark-up (including cash only) to your opponent. "))
+					
+   (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and
+				"According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), (\"light blue\"), (yellow), (\"dark blue\"), (\"light purple\"), (green), or (\"dark purple\"): " is yellow and
+				"Have you attempted a trade for this property? (yes) or (no): " is yes) 
+					(then recommendation is "Attempt to procure this property through trade. Offer a 45% mark-up (including both cash and property) to your opponent. "))
+		 
+   (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and
+				"According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), (\"light blue\"), (yellow), (\"dark blue\"), (\"light purple\"), (green), or (\"dark purple\"): " is yellow and
+				"Have you attempted a trade for this property? (yes) or (no): " is no) 
+					(then recommendation is "Attempt to procure this property through trade. Offer a 30% mark-up (including cash only) to your opponent. "))
+					
+   (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and
+				"According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), (\"light blue\"), (yellow), (\"dark blue\"), (\"light purple\"), (green), or (\"dark purple\"): " is "dark blue" and
+				"Have you attempted a trade for this property? (yes) or (no): " is yes) 
+					(then recommendation is "Attempt to procure this property through trade. Offer a 40% mark-up (including both cash and property) to your opponent. "))
+		 
+   (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and
+				"According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), (\"light blue\"), (yellow), (\"dark blue\"), (\"light purple\"), (green), or (\"dark purple\"): " is "dark blue" and
+				"Have you attempted a trade for this property? (yes) or (no): " is no) 
+					(then recommendation is "Attempt to procure this property through trade. Offer a 25% mark-up (including cash only) to your opponent. "))
+					
+   (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and
+				"According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), (\"light blue\"), (yellow), (\"dark blue\"), (\"light purple\"), (green), or (\"dark purple\"): " is "light purple" and
+				"Have you attempted a trade for this property? (yes) or (no): " is yes) 
+					(then recommendation is "Attempt to procure this property through trade. Offer a 40% mark-up (including both cash and property) to your opponent. "))
+		 
+   (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and
+				"According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), (\"light blue\"), (yellow), (\"dark blue\"), (\"light purple\"), (green), or (\"dark purple\"): " is "light purple" and
+				"Have you attempted a trade for this property? (yes) or (no): " is no) 
+					(then recommendation is "Attempt to procure this property through trade. Offer a 25% mark-up (including cash only) to your opponent. "))
+					
+   (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and
+				"According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), (\"light blue\"), (yellow), (\"dark blue\"), (\"light purple\"), (green), or (\"dark purple\"): " is green and
+				"Have you attempted a trade for this property? (yes) or (no): " is yes) 
+					(then recommendation is "Attempt to procure this property through trade. Offer a 35% mark-up (including both cash and property) to your opponent. "))
+		 
+   (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and
+				"According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), (\"light blue\"), (yellow), (\"dark blue\"), (\"light purple\"), (green), or (\"dark purple\"): " is green and
+				"Have you attempted a trade for this property? (yes) or (no): " is no) 
+					(then recommendation is "Attempt to procure this property through trade. Offer a 20% mark-up (including cash only) to your opponent. "))
+					
+   (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and
+				"According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), (\"light blue\"), (yellow), (\"dark blue\"), (\"light purple\"), (green), or (\"dark purple\"): " is "dark purple" and
+				"Have you attempted a trade for this property? (yes) or (no): " is yes) 
+					(then recommendation is "Attempt to procure this property through trade. Offer a 35% mark-up (including both cash and property) to your opponent. "))
+		 
+   (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and
+				"According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), (\"light blue\"), (yellow), (\"dark blue\"), (\"light purple\"), (green), or (\"dark purple\"): " is "dark purple" and
+				"Have you attempted a trade for this property? (yes) or (no): " is no) 
+					(then recommendation is "Attempt to procure this property through trade. Offer a 20% mark-up (including cash only) to your opponent. "))
+					
+   (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is no) 
+         (then recommendation is "Do no attempt to trade. "))
+		 
+	(sequence (if "Will you win next time you collect your salary? (yes) or (no): " is yes) 
+         (then recommendation is "Do no attempt to trade. ")))
+CLIPS> 
+(deffacts MAIN::initial-objective
+   (objective (element recommendation)))
+CLIPS> 
+(defrule MAIN::start-STAGE3
+	?current-stage-check <- (stage-sequence STAGE3 $?subsequent-stages)
+	?stage-completed <- (stage-completion FALSE)
+   =>
+   (retract ?stage-completed)
+   (focus STAGE3)
+   (assert (stage-completion TRUE)))
+CLIPS> ;***********************************************************************************************************************
+;-----------------------------------------------------------------------------------------------------------------------
+(batch "C:\\MONOPSYS\\MONOPSYS_SourceCode\\STAGE4.c")
+TRUE
+CLIPS> ;***********************************************************************************************************************
+;*******************************        MONOPSYS: The MONOPOLY Expert System         ***********************************
+;*******************************             Written by Chase Chemero                ***********************************
+;*******************************     Based on the algorithms created by Gary Riley   ***********************************
+;*******************************                  Written in CLIPS                   ***********************************
+;*******************************                     08/10/2013                      ***********************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;This stage is my favorite. It uses a decision tree algorithm that is shared in Gary Riley's book, Expert Systems: 
+;Principles and Programming, Fourth Edition. It has simple functionality in that there is no ability to alter the
+;decision tree. More advanced versions of this algorithm can query a user whether the expert system provided the correct
+;answer.
+;***********************************************************************************************************************
+(defrule STAGE4::STAGE4-initialization
+	(declare (auto-focus TRUE))
+	;LHS --> initialize the root node (first question)
+	?current-stage-check <- (stage-sequence STAGE4 $?subsequent-stages)
+	?stage-completed <- (stage-completion FALSE)
+	=>
+	(retract ?stage-completed)
+	(printout t crlf "Initializing STAGE4: Develop Properties." crlf "---------------------------------------------------------------------------------------------------" crlf)
+	(load-facts "C:\\MONOPSYS\\MONOPSYS_SourceCode\\STAGE4Questions.dat")
+	(assert (current-node root)))
+CLIPS> ;
+;-----------------------------------------------------------------------------------------------------------------------	
+(deffunction STAGE4::ask-TRUE-or-FALSE (?question)
+	(printout t ?question " (yes) or (no): ")
+	(bind ?answer (read))
+	(while (and (neq ?answer yes) (neq ?answer no))
+		(printout t ?question " (yes) or (no): ")
+		(bind ?answer (read)))
+	(if (eq ?answer yes)
+		then (return TRUE)
+		else (return FALSE)))
+CLIPS> ;
+;-----------------------------------------------------------------------------------------------------------------------
+(defrule STAGE4::prompt-decision-node-question
+	?node <- (current-node ?name)
+	(node (name ?name)
+		(type decision)
+		(question ?question))
+	(not (answer ?))
+	=>
+	(assert (answer (ask-TRUE-or-FALSE ?question))))
+CLIPS> ;
+;-----------------------------------------------------------------------------------------------------------------------
+(defrule STAGE4::continue-to-TRUE-branch
+	?node <- (current-node ?name)
+	(node (name ?name)
+		(type decision)
+		(TRUE-node ?TRUE-branch))
+	?answer <- (answer TRUE)
+	=>
+	(retract ?node ?answer)
+	(assert (current-node ?TRUE-branch)))
+CLIPS> ;
+;-----------------------------------------------------------------------------------------------------------------------
+(defrule STAGE4::continue-to-FALSE-branch
+	?node <- (current-node ?name)
+	(node (name ?name)
+		(type decision)
+		(FALSE-node ?FALSE-branch))
+	?answer <- (answer FALSE)
+	=>
+	(retract ?node ?answer)
+	(assert (current-node ?FALSE-branch)))
+CLIPS> ;
+;-----------------------------------------------------------------------------------------------------------------------
+(defrule STAGE4::provide-answer-node
+	?node <- (current-node ?name)
+	(node (name ?name) (type answer) (answer ?answer-value))
+	(not (answer ?))
+	=>
+	(printout t ?answer-value crlf)
+	(assert (answer FALSE)))
+CLIPS> ;
+;-----------------------------------------------------------------------------------------------------------------------
+(defrule STAGE4::end-STAGE4
+	?node <- (current-node ?name)
+	(node (name ?name) (type answer))
+	?answer <- (answer FALSE)
+	=>
+	(retract ?answer ?node)
+	(assert (stage-completion TRUE)))
+CLIPS> ;***********************************************************************************************************************
+;-----------------------------------------------------------------------------------------------------------------------
+(batch "C:\\MONOPSYS\\MONOPSYS_SourceCode\\STAGE5.c")
+TRUE
+CLIPS> ;***********************************************************************************************************************
+;*******************************        MONOPSYS: The MONOPOLY Expert System         ***********************************
+;*******************************             Written by Chase Chemero                ***********************************
+;*******************************     Based on the algorithms created by Gary Riley   ***********************************
+;*******************************                  Written in CLIPS                   ***********************************
+;*******************************                     08/10/2013                      ***********************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;***********************************************************************************************************************
+;This stage is simple. Its only purpose is to confirm that the player has finished his turn. Once the confirmation has 
+;been given then the application can be reset and the whole process can begin again. A more advanced expert system could
+;chronicle all user decisions for a more holistic approach to gameplay simulation and strategy development. The purpose
+;of this program was just to become familiar with the CLIPS syntax and learn a few different algorithms that are popular
+;in the field of AI.
+;***********************************************************************************************************************
+(defrule STAGE5::STAGE5-complete
+	(declare (auto-focus TRUE))
+	;LHS --> confirm the current stage is STAGE5
+	?current-stage-check <- (stage-sequence STAGE5 $?subsequent-stages)
+	?stage-completed <- (stage-completion FALSE)
+	=>
+	;RHS --> query whether player has completed STAGE1-STAGE4 (thereby completing STAGE5)
+	(retract ?stage-completed)
+	(printout t crlf "Initializing STAGE5: End Turn." crlf "---------------------------------------------------------------------------------------------------" crlf)
+	(printout t "Have you finished your turn? (yes) or (no): ")
+	(bind ?response (read))
+	(while (neq ?response yes)
+		do
+		(printout t "Finish your turn. Is it over? (yes) or (no): ")
+		(bind ?response (read)))
+	(if (eq ?response yes)
+		then (assert (stage-completion TRUE))
+		(reset)
+		(run)))
+CLIPS> ;***********************************************************************************************************************
+;-----------------------------------------------------------------------------------------------------------------------
+;The remaining code will clear the dialog box and prepare the application for use
+;reset -> to be activated -> reset the application so that the agenda is loaded with initial rules
+(reset)
+<== Focus MAIN
+==> Focus MAIN
+MSG >> delete ED:1 (<Instance-initial-object>)
+HND >> delete primary in class USER
+       ED:1 (<Instance-initial-object>)
+<== instance [initial-object] of INITIAL-OBJECT
+HND << delete primary in class USER
+       ED:1 (<Stale Instance-initial-object>)
+MSG << delete ED:1 (<Stale Instance-initial-object>)
+<== f-0     (initial-fact)
+==> instance [initial-object] of INITIAL-OBJECT
+MSG >> create ED:1 (<Instance-initial-object>)
+HND >> create primary in class USER
+       ED:1 (<Instance-initial-object>)
+HND << create primary in class USER
+       ED:1 (<Instance-initial-object>)
+MSG << create ED:1 (<Instance-initial-object>)
+MSG >> init ED:1 (<Instance-initial-object>)
+HND >> init primary in class USER
+       ED:1 (<Instance-initial-object>)
+HND << init primary in class USER
+       ED:1 (<Instance-initial-object>)
+MSG << init ED:1 (<Instance-initial-object>)
+==> f-0     (initial-fact)
+==> f-1     (stage-sequence STAGE1 STAGE2 STAGE3 STAGE4 STAGE5)
+==> f-2     (stage-completion FALSE)
+==> Focus STAGE1 from MAIN
+==> Activation 0      STAGE1-complete: f-1,f-2
+==> f-3     (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and "According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), ("light blue"), (yellow), ("dark blue"), ("light purple"), (green), or ("dark purple"): " is orange and "Have you attempted a trade for this property? (yes) or (no): " is yes) (then recommendation is "Attempt to procure this property through trade. Offer a 50% mark-up (including both cash and property) to your opponent. "))
+==> f-4     (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and "According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), ("light blue"), (yellow), ("dark blue"), ("light purple"), (green), or ("dark purple"): " is orange and "Have you attempted a trade for this property? (yes) or (no): " is no) (then recommendation is "Attempt to procure this property through trade. Offer a 35% mark-up (including cash only) to your opponent. "))
+==> f-5     (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and "According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), ("light blue"), (yellow), ("dark blue"), ("light purple"), (green), or ("dark purple"): " is red and "Have you attempted a trade for this property? (yes) or (no): " is yes) (then recommendation is "Attempt to procure this property through trade. Offer a 50% mark-up (including both cash and property) to your opponent. "))
+==> f-6     (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and "According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), ("light blue"), (yellow), ("dark blue"), ("light purple"), (green), or ("dark purple"): " is red and "Have you attempted a trade for this property? (yes) or (no): " is no) (then recommendation is "Attempt to procure this property through trade. Offer a 35% mark-up (including cash only) to your opponent. "))
+==> f-7     (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and "According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), ("light blue"), (yellow), ("dark blue"), ("light purple"), (green), or ("dark purple"): " is "light blue" and "Have you attempted a trade for this property? (yes) or (no): " is yes) (then recommendation is "Attempt to procure this property through trade. Offer a 45% mark-up (including both cash and property) to your opponent. "))
+==> f-8     (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and "According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), ("light blue"), (yellow), ("dark blue"), ("light purple"), (green), or ("dark purple"): " is "light blue" and "Have you attempted a trade for this property? (yes) or (no): " is no) (then recommendation is "Attempt to procure this property through trade. Offer a 30% mark-up (including cash only) to your opponent. "))
+==> f-9     (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and "According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), ("light blue"), (yellow), ("dark blue"), ("light purple"), (green), or ("dark purple"): " is yellow and "Have you attempted a trade for this property? (yes) or (no): " is yes) (then recommendation is "Attempt to procure this property through trade. Offer a 45% mark-up (including both cash and property) to your opponent. "))
+==> f-10    (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and "According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), ("light blue"), (yellow), ("dark blue"), ("light purple"), (green), or ("dark purple"): " is yellow and "Have you attempted a trade for this property? (yes) or (no): " is no) (then recommendation is "Attempt to procure this property through trade. Offer a 30% mark-up (including cash only) to your opponent. "))
+==> f-11    (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and "According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), ("light blue"), (yellow), ("dark blue"), ("light purple"), (green), or ("dark purple"): " is "dark blue" and "Have you attempted a trade for this property? (yes) or (no): " is yes) (then recommendation is "Attempt to procure this property through trade. Offer a 40% mark-up (including both cash and property) to your opponent. "))
+==> f-12    (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and "According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), ("light blue"), (yellow), ("dark blue"), ("light purple"), (green), or ("dark purple"): " is "dark blue" and "Have you attempted a trade for this property? (yes) or (no): " is no) (then recommendation is "Attempt to procure this property through trade. Offer a 25% mark-up (including cash only) to your opponent. "))
+==> f-13    (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and "According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), ("light blue"), (yellow), ("dark blue"), ("light purple"), (green), or ("dark purple"): " is "light purple" and "Have you attempted a trade for this property? (yes) or (no): " is yes) (then recommendation is "Attempt to procure this property through trade. Offer a 40% mark-up (including both cash and property) to your opponent. "))
+==> f-14    (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and "According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), ("light blue"), (yellow), ("dark blue"), ("light purple"), (green), or ("dark purple"): " is "light purple" and "Have you attempted a trade for this property? (yes) or (no): " is no) (then recommendation is "Attempt to procure this property through trade. Offer a 25% mark-up (including cash only) to your opponent. "))
+==> f-15    (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and "According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), ("light blue"), (yellow), ("dark blue"), ("light purple"), (green), or ("dark purple"): " is green and "Have you attempted a trade for this property? (yes) or (no): " is yes) (then recommendation is "Attempt to procure this property through trade. Offer a 35% mark-up (including both cash and property) to your opponent. "))
+==> f-16    (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and "According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), ("light blue"), (yellow), ("dark blue"), ("light purple"), (green), or ("dark purple"): " is green and "Have you attempted a trade for this property? (yes) or (no): " is no) (then recommendation is "Attempt to procure this property through trade. Offer a 20% mark-up (including cash only) to your opponent. "))
+==> f-17    (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and "According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), ("light blue"), (yellow), ("dark blue"), ("light purple"), (green), or ("dark purple"): " is "dark purple" and "Have you attempted a trade for this property? (yes) or (no): " is yes) (then recommendation is "Attempt to procure this property through trade. Offer a 35% mark-up (including both cash and property) to your opponent. "))
+==> f-18    (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is yes and "According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), ("light blue"), (yellow), ("dark blue"), ("light purple"), (green), or ("dark purple"): " is "dark purple" and "Have you attempted a trade for this property? (yes) or (no): " is no) (then recommendation is "Attempt to procure this property through trade. Offer a 20% mark-up (including cash only) to your opponent. "))
+==> f-19    (sequence (if "Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): " is no) (then recommendation is "Do no attempt to trade. "))
+==> f-20    (sequence (if "Will you win next time you collect your salary? (yes) or (no): " is yes) (then recommendation is "Do no attempt to trade. "))
+==> f-21    (objective (element recommendation))
+==> Activation 0      attempt-sequence: f-21,f-3,*,*
+==> Activation 0      attempt-sequence: f-21,f-4,*,*
+==> Activation 0      attempt-sequence: f-21,f-5,*,*
+==> Activation 0      attempt-sequence: f-21,f-6,*,*
+==> Activation 0      attempt-sequence: f-21,f-7,*,*
+==> Activation 0      attempt-sequence: f-21,f-8,*,*
+==> Activation 0      attempt-sequence: f-21,f-9,*,*
+==> Activation 0      attempt-sequence: f-21,f-10,*,*
+==> Activation 0      attempt-sequence: f-21,f-11,*,*
+==> Activation 0      attempt-sequence: f-21,f-12,*,*
+==> Activation 0      attempt-sequence: f-21,f-13,*,*
+==> Activation 0      attempt-sequence: f-21,f-14,*,*
+==> Activation 0      attempt-sequence: f-21,f-15,*,*
+==> Activation 0      attempt-sequence: f-21,f-16,*,*
+==> Activation 0      attempt-sequence: f-21,f-17,*,*
+==> Activation 0      attempt-sequence: f-21,f-18,*,*
+==> Activation 0      attempt-sequence: f-21,f-19,*,*
+==> Activation 0      attempt-sequence: f-21,f-20,*,*
+CLIPS> ;unwatch -> to be activated -> stop watching activations
+(unwatch all)
+CLIPS> ;run -> to be activated -> run the program
+;clear-window --> to be activated --> clear dialog window
+(clear-window)
+CLIPS> (run)
+
+***************************************************************************************************
+Initializing STAGE1: Begin Turn.
+---------------------------------------------------------------------------------------------------
+Did you roll the dice? (yes) or (no): yes
+
+Initializing STAGE2: Purchase Properties.
+---------------------------------------------------------------------------------------------------
+Is the property you landed on vacant? (yes) or (no): yes
+Can you afford to purchase the property? (yes) or (no): yes
+Purchase the property.
+
+Initializing STAGE3: Trade Properties.
+---------------------------------------------------------------------------------------------------
+Will you win next time you collect your salary? (yes) or (no): no
+Are there any color groups for which you are one property away from a monopoly in? (yes) or (no): yes
+According to Diagram #1 what is the highest ROI color group included in your previous answer? (orange), (red), ("light blue"), (yellow), ("dark blue"), ("light purple"), (green), or ("dark purple"): orange
+Have you attempted a trade for this property? (yes) or (no): no
+Attempt to procure this property through trade. Offer a 35% mark-up (including cash only) to your opponent. 
+
+Initializing STAGE4: Develop Properties.
+---------------------------------------------------------------------------------------------------
+Is the following true: You will NOT win the next time you collect your salary and you have at least 1 monopoly that has less than 3 houses on each property?  (yes) or (no): yes
+Is the following true: You have only 1 monopoly?  (yes) or (no): no
+Using Diagram #1, invest in the highest ranked monopoly so that there are 3 houses on each property. If funds remain, continue investing.
+
+Initializing STAGE5: End Turn.
+---------------------------------------------------------------------------------------------------
+Have you finished your turn? (yes) or (no): yes
+
+***************************************************************************************************
+Initializing STAGE1: Begin Turn.
+---------------------------------------------------------------------------------------------------
+Did you roll the dice? (yes) or (no): no
+Roll the dice. Did you roll? (yes) or (no): no
+Roll the dice. Did you roll? (yes) or (no): yes
+
+Initializing STAGE2: Purchase Properties.
+---------------------------------------------------------------------------------------------------
+Is the property you landed on vacant? (yes) or (no): no
+Do you have enough money to pay the rent? (yes) or (no): no
+Game over. You lose. Declare bankruptcy.
+
+CLIPS> 
